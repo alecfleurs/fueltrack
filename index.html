@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="color-scheme" content="dark light">
+<meta name="description" content="Offline commute fuel telemetry: daily cost, projections, tank-to-tank efficiency and refuel log.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FuelTrack">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" id="manifestLink">
+<link rel="icon" id="faviconLink">
+<link rel="apple-touch-icon" id="appleIconLink">
+<title>FuelTrack · Commute Fuel Telemetry</title>
+<style>
+:root{
+  --bg:#0b1120; --bg2:#0f172a; --panel:#111a2e; --panel2:#17223b; --line:#1f2c47;
+  --text:#e2e8f0; --muted:#8a9bb8; --accent:#f59e0b; --accent-ink:#1a1204; --accent2:#22d3ee;
+  --good:#34d399; --warn:#fbbf24; --bad:#f87171; --violet:#a78bfa;
+  --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  --safe-t:env(safe-area-inset-top,0px); --safe-r:env(safe-area-inset-right,0px);
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-l:env(safe-area-inset-left,0px);
+  --tabbar-h:64px;
+}
+[data-theme="light"]{
+  --bg:#eef2f7; --bg2:#ffffff; --panel:#ffffff; --panel2:#f5f7fb; --line:#d9e0ec;
+  --text:#0f172a; --muted:#5b6b85; --accent:#d97706; --accent-ink:#ffffff; --accent2:#0891b2;
+  --good:#059669; --warn:#b45309; --bad:#dc2626; --violet:#7c3aed;
+  --shadow:0 6px 20px rgba(15,23,42,.08);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden}
+body{
+  font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  min-height:100vh;min-height:100dvh;
+  padding:0 var(--safe-r) calc(var(--tabbar-h) + var(--safe-b) + 16px) var(--safe-l);
+  -webkit-tap-highlight-color:transparent;
+}
+.num,input,.t-val,.wi-val,.e-cost,.e-meta,.spark-meta{font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+h1,h2,h3{margin:0;font-weight:700}
+h2{font-size:.82rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+svg{display:block}
+
+/* Header */
+.top{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:6px;
+  padding:calc(8px + var(--safe-t)) 12px 8px;
+  background:var(--bg);background:color-mix(in srgb,var(--bg) 88%,transparent);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.brand-ico{width:36px;height:36px;border-radius:10px;flex:none;overflow:hidden;background:var(--bg2)}
+.brand-ico img{width:100%;height:100%}
+.b-title{font-weight:800;letter-spacing:.02em;font-size:1.05rem;line-height:1.1}
+.b-sub{font-size:.72rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Controls */
+.icon-btn{
+  width:44px;height:44px;flex:none;display:inline-grid;place-items:center;border-radius:12px;
+  border:1px solid var(--line);background:var(--panel);color:var(--text);padding:0;
+}
+.icon-btn svg{width:20px;height:20px}
+.icon-btn.attn{border-color:var(--accent);color:var(--accent)}
+.btn{
+  min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--text);font-weight:650;display:inline-flex;align-items:center;
+  justify-content:center;gap:8px;text-align:center;line-height:1.15;
+}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+
+main{max-width:1040px;margin:0 auto;padding:14px 14px 0}
+.panel[hidden]{display:none}
+.panel{display:grid;gap:14px;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;
+  font-size:.75rem;font-weight:700;letter-spacing:.06em;background:var(--panel2);border:1px solid var(--line);color:var(--accent2)
+}
+.hint{font-size:.8rem;color:var(--muted);margin:6px 0 0}
+
+/* Segmented */
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;border-radius:14px;background:var(--bg2);border:1px solid var(--line)}
+.seg button{min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-weight:650;padding:0 10px}
+.seg button[aria-checked="true"]{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg.small button{min-height:44px;font-size:.85rem}
+
+/* Fields */
+.field{padding:10px 0 2px;border-bottom:1px dashed var(--line)}
+.field:last-child{border-bottom:0}
+.field-h{display:flex;align-items:center;justify-content:space-between;gap:6px 10px;flex-wrap:wrap}
+.field-h label{font-size:.9rem;font-weight:600;flex:1 1 120px;min-width:0}
+.numbox{display:flex;align-items:center;gap:6px;flex:none}
+.numin{
+  width:92px;min-height:44px;padding:0 10px;text-align:right;font-size:1.05rem;font-weight:700;
+  background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);
+}
+.numin.wide{width:110px}
+.numin[aria-invalid="true"]{border-color:var(--bad);color:var(--bad)}
+.unit{font-size:.78rem;color:var(--muted);min-width:56px}
+.txtin,select.txtin{
+  width:100%;min-height:44px;padding:0 12px;background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;color:var(--text);font-size:1rem;
+}
+.stack{display:grid;gap:12px}
+.stack label.lbl{display:grid;gap:6px;font-size:.85rem;font-weight:600;color:var(--muted)}
+
+/* Range */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:0;background:transparent;--p:50%}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--accent) 0 var(--p),var(--line) var(--p) 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:var(--accent);border:4px solid var(--bg2);box-shadow:0 0 0 1px var(--accent),0 2px 8px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);border:4px solid var(--bg2);box-shadow:0 0 0 1px var(--accent)}
+
+/* Calculator layout */
+.calc-layout{display:grid;gap:14px}
+@media (min-width:880px){.calc-layout{grid-template-columns:minmax(330px,380px) 1fr;align-items:start}}
+.outputs{display:grid;gap:14px;min-width:0}
+
+/* Tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:620px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tile{
+  position:relative;overflow:hidden;min-width:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:12px 12px 11px;
+}
+.tile::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:var(--tc,var(--accent2));opacity:.85}
+.tile.hero{grid-column:1/-1;background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 60%),var(--panel2)}
+.t-label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.t-val{font-size:clamp(1.02rem,4.6vw,1.45rem);font-weight:800;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.t-val small{font-size:.62em;color:var(--muted);font-weight:700;margin-left:4px;letter-spacing:.04em}
+.hero .t-val{font-size:clamp(2rem,10vw,2.8rem);color:var(--accent);line-height:1.1}
+.t-sub{font-size:.76rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* What-if */
+.wi-fields{display:grid;gap:0 18px}
+@media (min-width:700px){.wi-fields{grid-template-columns:1fr 1fr}}
+.wi-rows{margin-top:8px}
+.wi-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.wi-row:last-child{border-bottom:0}
+.wi-name{font-weight:650;font-size:.92rem;min-width:0}
+.wi-name small{display:block;color:var(--muted);font-weight:500;font-size:.76rem}
+.wi-val{text-align:right;font-weight:800}
+.wi-val small{display:block;font-weight:600;font-size:.76rem}
+.wi-bar{grid-column:1/-1;height:10px;border-radius:6px;background:var(--bg2);overflow:hidden;border:1px solid var(--line)}
+.wi-bar>i{display:block;height:100%;width:var(--w);background:var(--c);border-radius:6px;transition:width .25s ease}
+.up{color:var(--bad)} .down{color:var(--good)} .flat{color:var(--muted)}
+
+/* Tank */
+.tank-grid{display:grid;gap:14px}
+@media (min-width:880px){.tank-grid{grid-template-columns:minmax(330px,380px) 1fr;align-items:start}}
+.verdict{margin-top:10px;padding:12px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-size:.9rem}
+
+/* Log */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-weight:650;font-size:.88rem}
+.chips button[aria-pressed="true"]{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.spark-grid{display:grid;gap:14px}
+@media (min-width:700px){.spark-grid{grid-template-columns:1fr 1fr}}
+.spark svg{width:100%;height:auto;margin-top:6px}
+.spark-meta{display:flex;justify-content:space-between;gap:8px;font-size:.76rem;color:var(--muted);margin-top:4px;flex-wrap:wrap}
+.entries{list-style:none;margin:0;padding:0}
+.entry{display:grid;grid-template-columns:40px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+.entry:last-child{border-bottom:0}
+.e-cat{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:.8rem;background:var(--bg2);border:1px solid var(--line);color:var(--cc)}
+.e-top{display:flex;justify-content:space-between;gap:10px;min-width:0}
+.e-label{font-weight:650;min-width:0;overflow-wrap:anywhere}
+.e-cost{font-weight:800;white-space:nowrap}
+.e-meta{font-size:.76rem;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.empty{padding:20px 4px;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* Tab bar */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(3,1fr);
+  padding:4px calc(8px + var(--safe-r)) calc(4px + var(--safe-b)) calc(8px + var(--safe-l));
+  background:var(--bg2);border-top:1px solid var(--line);
+}
+.tab{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:none;color:var(--muted);font-size:.72rem;font-weight:700;letter-spacing:.04em;border-radius:12px}
+.tab svg{width:22px;height:22px}
+.tab[aria-selected="true"]{color:var(--accent)}
+
+/* Dialogs */
+dialog{
+  border:0;padding:0;margin:auto auto 0;width:100%;max-width:560px;max-height:92vh;max-height:92dvh;
+  background:var(--panel);color:var(--text);border-radius:22px 22px 0 0;box-shadow:var(--shadow);overflow:auto;
+}
+@media (min-width:640px){dialog{margin:auto;border-radius:22px}}
+dialog::backdrop{background:rgba(2,6,23,.62);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+dialog[open]{animation:sheet .22s ease}
+@keyframes sheet{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+.sheet{padding:16px 16px calc(16px + var(--safe-b))}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.sheet-h h3{font-size:1.1rem}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.steps{margin:6px 0 0;padding-left:20px;display:grid;gap:6px;font-size:.92rem}
+.os{padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);margin-top:10px}
+.os.match{border-color:var(--accent)}
+.os h4{margin:0 0 4px;font-size:.95rem}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;color:var(--muted);padding:6px 0}
+
+/* Toast */
+.toast{
+  position:fixed;left:50%;bottom:calc(var(--tabbar-h) + var(--safe-b) + 14px);transform:translate(-50%,20px);
+  max-width:calc(100vw - 32px);padding:12px 16px;border-radius:12px;background:var(--text);color:var(--bg);
+  font-weight:650;font-size:.9rem;opacity:0;pointer-events:none;transition:.22s ease;z-index:50;text-align:center
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="brand-ico"><img id="brandIcon" alt=""></div>
+    <div style="min-width:0">
+      <div class="b-title">FuelTrack</div>
+      <div class="b-sub">Commute fuel telemetry</div>
+    </div>
+  </div>
+  <button class="icon-btn" id="btnTheme" aria-label="Toggle light or dark theme">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+  </button>
+  <button class="icon-btn" id="btnInstall" aria-label="Install app">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+  </button>
+  <button class="icon-btn" id="btnSettings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- CALCULATOR -->
+  <section class="panel" id="tab-calc" role="tabpanel" aria-labelledby="tabbtn-calc">
+    <div class="calc-layout">
+      <div class="card">
+        <div class="card-h"><h2>Parameters</h2><span class="chip" id="curChip">RSD</span></div>
+        <div class="seg" role="radiogroup" aria-label="Trip mode" id="tripSeg">
+          <button type="button" role="radio" data-legs="2">Round-Trip ×2</button>
+          <button type="button" role="radio" data-legs="1">One-Way ×1</button>
+        </div>
+        <div id="calcFields"></div>
+      </div>
+
+      <div class="outputs">
+        <div class="tiles" aria-live="polite">
+          <div class="tile hero" style="--tc:var(--accent)">
+            <div class="t-label">Daily cost</div>
+            <div class="t-val"><span id="o-daily">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-daily-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--accent2)">
+            <div class="t-label">Single leg</div>
+            <div class="t-val"><span id="o-leg">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-leg-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--violet)">
+            <div class="t-label">Daily fuel</div>
+            <div class="t-val"><span id="o-liters">0</span><small>L</small></div>
+            <div class="t-sub" id="o-liters-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--good)">
+            <div class="t-label">Cost / km</div>
+            <div class="t-val"><span id="o-perkm">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-perkm-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--accent2)">
+            <div class="t-label">Weekly</div>
+            <div class="t-val"><span id="o-week">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-week-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--warn)">
+            <div class="t-label">Monthly</div>
+            <div class="t-val"><span id="o-month">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-month-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--bad)">
+            <div class="t-label">Annual · 260 d</div>
+            <div class="t-val"><span id="o-year">0</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="o-year-sub"></div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="btnSaveCalc" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Save to log</button>
+          <button class="btn" id="btnCopy" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>Copy summary</button>
+          <button class="btn" id="btnShare" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6"/></svg>Share</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>What-if sensitivity</h2>
+        <div class="seg small" role="radiogroup" aria-label="Projection period" id="wiSeg">
+          <button type="button" role="radio" data-period="month">Monthly</button>
+          <button type="button" role="radio" data-period="year">Annual</button>
+        </div>
+      </div>
+      <div class="wi-fields" id="wiFields"></div>
+      <div class="wi-rows" id="wiRows"></div>
+    </div>
+  </section>
+
+  <!-- TANK TO TANK -->
+  <section class="panel" id="tab-tank" role="tabpanel" aria-labelledby="tabbtn-tank" hidden>
+    <div class="tank-grid">
+      <div class="card">
+        <div class="card-h"><h2>Tank-to-tank input</h2></div>
+        <div class="field"><div class="field-h"><label for="t-km">Distance since last refuel</label><div class="numbox"><input id="t-km" class="numin wide" type="text" inputmode="decimal" autocomplete="off" placeholder="0.0"><span class="unit">km</span></div></div></div>
+        <div class="field"><div class="field-h"><label for="t-l">Liters filled</label><div class="numbox"><input id="t-l" class="numin wide" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00"><span class="unit">L</span></div></div></div>
+        <div class="field"><div class="field-h"><label for="t-board">Board computer estimate</label><div class="numbox"><input id="t-board" class="numin wide" type="text" inputmode="decimal" autocomplete="off" placeholder="optional"><span class="unit">L/100 km</span></div></div></div>
+        <div class="field"><div class="field-h"><label for="t-price">Price paid</label><div class="numbox"><input id="t-price" class="numin wide" type="text" inputmode="decimal" autocomplete="off"><span class="unit" id="t-price-unit">RSD/L</span></div></div></div>
+        <p class="hint">Fill to the automatic pump shut-off both times and reset the trip meter at each full fill. Partial fills skew the result.</p>
+      </div>
+
+      <div class="outputs">
+        <div class="tiles">
+          <div class="tile hero" style="--tc:var(--accent2)">
+            <div class="t-label">Real-world consumption</div>
+            <div class="t-val" style="color:var(--accent2)"><span id="r-cons">--</span><small>L/100 km</small></div>
+            <div class="t-sub" id="r-cons-sub">Enter distance and liters</div>
+          </div>
+          <div class="tile" style="--tc:var(--warn)">
+            <div class="t-label">vs board computer</div>
+            <div class="t-val"><span id="r-delta">--</span></div>
+            <div class="t-sub" id="r-delta-sub">No estimate entered</div>
+          </div>
+          <div class="tile" style="--tc:var(--accent)">
+            <div class="t-label">Fill cost</div>
+            <div class="t-val"><span id="r-fill">--</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="r-fill-sub"></div>
+          </div>
+          <div class="tile" style="--tc:var(--good)">
+            <div class="t-label">Real cost / km</div>
+            <div class="t-val"><span id="r-perkm">--</span><small data-cur>RSD</small></div>
+            <div class="t-sub">At price paid</div>
+          </div>
+          <div class="tile" style="--tc:var(--bad)">
+            <div class="t-label">Real monthly commute</div>
+            <div class="t-val"><span id="r-month">--</span><small data-cur>RSD</small></div>
+            <div class="t-sub" id="r-month-sub"></div>
+          </div>
+        </div>
+        <div class="verdict" id="r-verdict" hidden></div>
+        <div class="btn-row">
+          <button class="btn primary" id="btnApply" type="button" disabled>Apply to calculator</button>
+          <button class="btn" id="btnSaveRefuel" type="button" disabled>Save refuel entry</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section class="panel" id="tab-log" role="tabpanel" aria-labelledby="tabbtn-log" hidden>
+    <div class="chips" id="logFilter" role="group" aria-label="Filter by category"></div>
+    <div class="tiles">
+      <div class="tile" style="--tc:var(--accent2)"><div class="t-label">Total distance</div><div class="t-val"><span id="s-km">0</span><small>km</small></div><div class="t-sub" id="s-count">0 entries</div></div>
+      <div class="tile" style="--tc:var(--violet)"><div class="t-label">Total fuel</div><div class="t-val"><span id="s-l">0</span><small>L</small></div><div class="t-sub">Logged volume</div></div>
+      <div class="tile" style="--tc:var(--accent)"><div class="t-label">Total spent</div><div class="t-val"><span id="s-cost">0</span><small data-cur>RSD</small></div><div class="t-sub" id="s-cost-sub">All entries</div></div>
+      <div class="tile" style="--tc:var(--good)"><div class="t-label">Avg real consumption</div><div class="t-val"><span id="s-cons">--</span><small>L/100</small></div><div class="t-sub" id="s-cons-sub">From refuels</div></div>
+      <div class="tile" style="--tc:var(--warn)"><div class="t-label">Avg fuel price</div><div class="t-val"><span id="s-price">--</span><small data-cur>RSD</small></div><div class="t-sub">Volume-weighted</div></div>
+      <div class="tile" style="--tc:var(--bad)"><div class="t-label">Avg cost / km</div><div class="t-val"><span id="s-perkm">--</span><small data-cur>RSD</small></div><div class="t-sub">Spend ÷ distance</div></div>
+    </div>
+
+    <div class="spark-grid">
+      <div class="card spark">
+        <div class="card-h" style="margin-bottom:0"><h2>Fuel price trend</h2><span class="chip" id="sp-price-last">--</span></div>
+        <svg id="sp-price" viewBox="0 0 300 70" role="img" aria-label="Fuel price sparkline"></svg>
+        <div class="spark-meta" id="sp-price-meta"></div>
+      </div>
+      <div class="card spark">
+        <div class="card-h" style="margin-bottom:0"><h2>Consumption trend</h2><span class="chip" id="sp-cons-last">--</span></div>
+        <svg id="sp-cons" viewBox="0 0 300 70" role="img" aria-label="Consumption sparkline"></svg>
+        <div class="spark-meta" id="sp-cons-meta"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>Entries</h2><span class="chip" id="logCount">0</span></div>
+      <ul class="entries" id="entries"></ul>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>Data</h2></div>
+      <div class="btn-row">
+        <button class="btn" id="btnCsv" type="button">Export CSV</button>
+        <button class="btn" id="btnBackup" type="button">Backup JSON</button>
+        <button class="btn" id="btnRestore" type="button">Restore JSON</button>
+        <button class="btn danger" id="btnClear" type="button">Clear log</button>
+      </div>
+      <p class="hint">Data lives only in this browser's local storage. Back up before clearing site data or switching phones.</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar" role="tablist" aria-label="Sections">
+  <button class="tab" role="tab" id="tabbtn-calc" data-tab="calc" aria-controls="tab-calc">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-5"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg>Calculator</button>
+  <button class="tab" role="tab" id="tabbtn-tank" data-tab="tank" aria-controls="tab-tank">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M7 8h4"/><path d="M14 10h2a2 2 0 0 1 2 2v4a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg>Tank-to-Tank</button>
+  <button class="tab" role="tab" id="tabbtn-log" data-tab="log" aria-controls="tab-log">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>Log</button>
+</nav>
+
+<!-- SETTINGS -->
+<dialog id="dlgSettings" aria-labelledby="setTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-h"><h3 id="setTitle">Settings</h3><button class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="stack">
+      <label class="lbl">Currency
+        <select class="txtin" id="setCurrency"></select>
+      </label>
+      <div class="lbl" style="display:grid;gap:6px;font-size:.85rem;font-weight:600;color:var(--muted)">Theme
+        <div class="seg" role="radiogroup" aria-label="Theme" id="themeSeg">
+          <button type="button" role="radio" data-theme-opt="dark">Dark</button>
+          <button type="button" role="radio" data-theme-opt="light">Light</button>
+          <button type="button" role="radio" data-theme-opt="system">System</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:0">Changing currency relabels values only. Update the fuel price to match the new currency.</p>
+      <button class="btn" id="btnReset" type="button">Reset calculator to defaults</button>
+      <div>
+        <div class="kv"><span>Version</span><span id="appVer"></span></div>
+        <div class="kv"><span>Offline cache</span><span id="swStatus">Checking…</span></div>
+        <div class="kv"><span>Log entries</span><span id="setCount">0</span></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- INSTALL -->
+<dialog id="dlgInstall" aria-labelledby="insTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-h"><h3 id="insTitle">Install FuelTrack</h3><button class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <p id="insStatus" class="hint" style="margin:0 0 6px"></p>
+    <button class="btn primary" id="btnInstallNow" type="button" style="width:100%" hidden>Install now</button>
+    <div class="os" id="os-android">
+      <h4>Android (Chrome, Edge, Samsung Internet)</h4>
+      <ol class="steps"><li>Tap <b>Install now</b> above if shown.</li><li>Otherwise open the browser menu <b>⋮</b>.</li><li>Choose <b>Install app</b> or <b>Add to Home screen</b>.</li></ol>
+    </div>
+    <div class="os" id="os-ios">
+      <h4>iPhone / iPad (Safari)</h4>
+      <ol class="steps"><li>Tap the <b>Share</b> button in the toolbar.</li><li>Scroll and tap <b>Add to Home Screen</b>.</li><li>Keep <b>Open as Web App</b> enabled and tap <b>Add</b>.</li></ol>
+    </div>
+    <div class="os" id="os-desktop">
+      <h4>Desktop (Chrome, Edge)</h4>
+      <ol class="steps"><li>Click the install icon at the right end of the address bar.</li><li>Confirm <b>Install</b>.</li></ol>
+    </div>
+  </div>
+</dialog>
+
+<!-- SAVE ENTRY -->
+<dialog id="dlgSave" aria-labelledby="saveTitle">
+  <form class="sheet" id="saveForm" method="dialog">
+    <div class="grab"></div>
+    <div class="sheet-h"><h3 id="saveTitle">Save entry</h3><button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="stack">
+      <label class="lbl">Label<input class="txtin" id="sv-label" maxlength="60" required autocomplete="off"></label>
+      <label class="lbl">Category<select class="txtin" id="sv-cat"></select></label>
+      <label class="lbl">Date<input class="txtin" id="sv-date" type="date" required></label>
+      <div class="verdict num" id="sv-preview"></div>
+      <div class="btn-row">
+        <button class="btn ghost" type="button" data-close>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileRestore" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===================== Constants & storage ===================== */
+  const APP_VERSION = '1.0.0';
+  const LS = { settings: 'fueltrack.settings.v1', log: 'fueltrack.log.v1' };
+  const WEEK_DAYS = 5;
+  const YEAR_DAYS = 260;
+  const CATEGORIES = ['Commute', 'City', 'Highway', 'Refuel'];
+  const CAT_COLORS = { Commute: 'var(--accent2)', City: 'var(--warn)', Highway: 'var(--violet)', Refuel: 'var(--good)' };
+  const CURRENCIES = {
+    RSD: { min: 100, max: 350, step: 0.5, dp: 2 },
+    EUR: { min: 0.8, max: 3, step: 0.01, dp: 2 },
+    USD: { min: 0.5, max: 3, step: 0.01, dp: 2 },
+    GBP: { min: 0.8, max: 3, step: 0.01, dp: 2 },
+    CHF: { min: 1, max: 3.5, step: 0.01, dp: 2 },
+    BAM: { min: 1.5, max: 5, step: 0.01, dp: 2 },
+    MKD: { min: 50, max: 150, step: 0.5, dp: 2 },
+    HUF: { min: 400, max: 1000, step: 1, dp: 0 },
+    RON: { min: 5, max: 12, step: 0.01, dp: 2 },
+    PLN: { min: 4, max: 10, step: 0.01, dp: 2 },
+    CZK: { min: 25, max: 60, step: 0.1, dp: 2 }
+  };
+  const DEFAULTS = Object.freeze({
+    currency: 'RSD', theme: 'dark', legs: 2,
+    oneWay: 7.1, consumption: 8.0, price: 210, workDays: 22,
+    shift: 1.0, hike: 10, wiPeriod: 'month'
+  });
+
+  const store = {
+    get(key, fallback) {
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+      catch { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+      catch { return false; }
+    }
+  };
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+  const parseNum = (s) => {
+    const v = parseFloat(String(s).trim().replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(v) ? v : NaN;
+  };
+  const round = (v, dp) => { const f = 10 ** dp; return Math.round(v * f) / f; };
+  const todayISO = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  const nfCache = new Map();
+  const nf = (dp) => {
+    if (!nfCache.has(dp)) nfCache.set(dp, new Intl.NumberFormat(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp }));
+    return nfCache.get(dp);
+  };
+  const fmt = (v, dp = 2) => (isNum(v) ? nf(dp).format(v) : '--');
+  const curDp = () => (CURRENCIES[state.currency] || { dp: 2 }).dp;
+  const money = (v) => fmt(v, curDp());
+  const fmtDate = (iso) => {
+    const d = new Date(iso + 'T00:00:00');
+    return isNaN(d) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  function sanitizeSettings(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    for (const [k, def] of Object.entries(DEFAULTS)) {
+      const v = raw[k];
+      if (typeof def === 'number' && isNum(v) && v >= 0) out[k] = v;
+      if (typeof def === 'string' && typeof v === 'string') out[k] = v;
+    }
+    if (out.currency && !CURRENCIES[out.currency]) delete out.currency;
+    if (out.legs && out.legs !== 1 && out.legs !== 2) delete out.legs;
+    if (out.theme && !['dark', 'light', 'system'].includes(out.theme)) delete out.theme;
+    if (out.wiPeriod && !['month', 'year'].includes(out.wiPeriod)) delete out.wiPeriod;
+    return out;
+  }
+  function sanitizeLog(raw) {
+    if (!Array.isArray(raw)) return [];
+    const n = (v) => (isNum(+v) ? +v : 0);
+    return raw.filter((e) => e && typeof e === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e) => ({
+      id: typeof e.id === 'string' ? e.id : uid(),
+      date: e.date,
+      label: String(e.label || 'Entry').slice(0, 60),
+      category: CATEGORIES.includes(e.category) ? e.category : 'Commute',
+      km: n(e.km), liters: n(e.liters), price: n(e.price), cost: n(e.cost), cons: n(e.cons),
+      currency: typeof e.currency === 'string' ? e.currency : 'RSD',
+      source: ['calc', 'refuel', 'manual'].includes(e.source) ? e.source : 'manual',
+      ts: n(e.ts) || Date.now()
+    }));
+  }
+
+  let state = { ...DEFAULTS, ...sanitizeSettings(store.get(LS.settings, {})) };
+  let log = sanitizeLog(store.get(LS.log, []));
+  let saveTimer = null;
+  const persistSettings = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set(LS.settings, state), 200); };
+  const persistLog = () => { if (!store.set(LS.log, log)) toast('Storage full or blocked. Export a backup.'); };
+
+  /* ===================== Toast ===================== */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  /* ===================== Calculation engine ===================== */
+  function compute(s = state) {
+    const lPerKm = s.consumption / 100;
+    const dailyKm = s.oneWay * s.legs;
+    const legL = s.oneWay * lPerKm;
+    const dailyL = dailyKm * lPerKm;
+    const daily = dailyL * s.price;
+    return {
+      dailyKm, legL, dailyL, daily,
+      legCost: legL * s.price,
+      perKm: lPerKm * s.price,
+      weekly: daily * WEEK_DAYS,
+      monthly: daily * s.workDays,
+      annual: daily * YEAR_DAYS,
+      annualKm: dailyKm * YEAR_DAYS,
+      annualL: dailyL * YEAR_DAYS
+    };
+  }
+  const periodCost = (cons, price, period) =>
+    state.oneWay * state.legs * (cons / 100) * price * (period === 'year' ? YEAR_DAYS : state.workDays);
+
+  /* ===================== Synced fields ===================== */
+  const FIELD_DEFS = {
+    oneWay:      { label: 'One-way distance', unit: 'km', min: 0.5, max: 100, step: 0.1, dp: 1, hard: [0.01, 5000] },
+    consumption: { label: 'Average consumption', unit: 'L/100 km', min: 3, max: 20, step: 0.1, dp: 1, hard: [0.1, 80] },
+    price:       { label: 'Fuel price', unit: () => `${state.currency}/L`, bounds: () => CURRENCIES[state.currency], dp: () => curDp(), hard: [0.0001, 1e6] },
+    workDays:    { label: 'Working days / month', unit: 'days', min: 1, max: 31, step: 1, dp: 0, hard: [1, 31] },
+    shift:       { label: 'Consumption shift', unit: '± L/100 km', min: 0.1, max: 4, step: 0.1, dp: 1, hard: [0, 30] },
+    hike:        { label: 'Price hike scenario', unit: '%', min: 0, max: 50, step: 1, dp: 0, hard: [0, 500] }
+  };
+  const fields = [];
+
+  function makeField(host, key) {
+    const def = FIELD_DEFS[key];
+    const id = 'f-' + key;
+    const el = document.createElement('div');
+    el.className = 'field';
+    el.innerHTML =
+      `<div class="field-h"><label for="${id}">${def.label}</label>` +
+      `<div class="numbox"><input id="${id}" class="numin" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"><span class="unit"></span></div></div>` +
+      `<input type="range" aria-label="${def.label} slider">`;
+    host.appendChild(el);
+    const num = $('.numin', el), rng = $('input[type=range]', el), unit = $('.unit', el);
+    const dp = () => (typeof def.dp === 'function' ? def.dp() : def.dp);
+    const bounds = () => (def.bounds ? def.bounds() : def);
+
+    const api = {
+      sync() {
+        const v = state[key], b = bounds();
+        rng.min = Math.min(b.min, v);
+        rng.max = Math.max(b.max, v);
+        rng.step = b.step;
+        rng.value = v;
+        const p = ((v - rng.min) / (rng.max - rng.min || 1)) * 100;
+        rng.style.setProperty('--p', p + '%');
+        if (document.activeElement !== num) { num.value = v.toFixed(dp()); num.removeAttribute('aria-invalid'); }
+        unit.textContent = typeof def.unit === 'function' ? def.unit() : def.unit;
+      }
+    };
+
+    num.addEventListener('input', () => {
+      const v = parseNum(num.value);
+      const ok = isNum(v) && v >= def.hard[0] && v <= def.hard[1];
+      num.setAttribute('aria-invalid', ok ? 'false' : 'true');
+      if (!ok) return;
+      state[key] = key === 'workDays' ? Math.round(v) : v;
+      update();
+    });
+    num.addEventListener('blur', () => { num.value = state[key].toFixed(dp()); num.removeAttribute('aria-invalid'); });
+    num.addEventListener('keydown', (e) => { if (e.key === 'Enter') num.blur(); });
+    num.addEventListener('focus', () => requestAnimationFrame(() => num.select()));
+    rng.addEventListener('input', () => {
+      state[key] = round(parseFloat(rng.value), dp());
+      update();
+    });
+
+    fields.push(api);
+    return api;
+  }
+
+  /* ===================== Rendering ===================== */
+  const setText = (id, txt) => { const n = document.getElementById(id); if (n) n.textContent = txt; };
+
+  function renderCalc() {
+    const r = compute();
+    const legsTxt = state.legs === 2 ? 'round-trip' : 'one-way';
+    setText('o-daily', money(r.daily));
+    setText('o-daily-sub', `${fmt(r.dailyKm, 1)} km ${legsTxt} · ${fmt(r.dailyL, 2)} L`);
+    setText('o-leg', money(r.legCost));
+    setText('o-leg-sub', `${fmt(state.oneWay, 1)} km one-way`);
+    setText('o-liters', fmt(r.dailyL, 2));
+    setText('o-liters-sub', `${fmt(r.legL, 2)} L per leg`);
+    setText('o-perkm', fmt(r.perKm, 2));
+    setText('o-perkm-sub', `${fmt(state.consumption, 1)} L/100 km × ${money(state.price)}`);
+    setText('o-week', money(r.weekly));
+    setText('o-week-sub', `${WEEK_DAYS} days · ${fmt(r.dailyL * WEEK_DAYS, 1)} L`);
+    setText('o-month', money(r.monthly));
+    setText('o-month-sub', `${state.workDays} days · ${fmt(r.dailyL * state.workDays, 1)} L`);
+    setText('o-year', money(r.annual));
+    setText('o-year-sub', `${fmt(r.annualKm, 0)} km · ${fmt(r.annualL, 0)} L`);
+    renderWhatIf();
+  }
+
+  function renderWhatIf() {
+    const p = state.wiPeriod;
+    const c = state.consumption, pr = state.price, sh = state.shift, hk = state.hike / 100;
+    const ecoCons = Math.max(0.1, c - sh);
+    const rows = [
+      { name: 'Eco driving', sub: `${fmt(ecoCons, 1)} L/100 km`, v: periodCost(ecoCons, pr, p), col: 'var(--good)' },
+      { name: 'Baseline', sub: `${fmt(c, 1)} L/100 km · ${money(pr)}/L`, v: periodCost(c, pr, p), col: 'var(--accent2)', base: true },
+      { name: 'Heavy traffic', sub: `${fmt(c + sh, 1)} L/100 km`, v: periodCost(c + sh, pr, p), col: 'var(--warn)' },
+      { name: `Price +${fmt(state.hike, 0)}%`, sub: `${money(pr * (1 + hk))}/L`, v: periodCost(c, pr * (1 + hk), p), col: 'var(--violet)' },
+      { name: 'Traffic + price hike', sub: `${fmt(c + sh, 1)} L/100 km · ${money(pr * (1 + hk))}/L`, v: periodCost(c + sh, pr * (1 + hk), p), col: 'var(--bad)' }
+    ];
+    const base = rows[1].v;
+    const max = Math.max(...rows.map((r) => r.v)) || 1;
+    $('#wiRows').innerHTML = rows.map((r) => {
+      const d = r.v - base;
+      const pct = base ? (d / base) * 100 : 0;
+      const cls = r.base || Math.abs(d) < 1e-9 ? 'flat' : d > 0 ? 'up' : 'down';
+      const delta = r.base ? (p === 'year' ? 'per year' : 'per month') : `${d > 0 ? '+' : '−'}${money(Math.abs(d))} (${d > 0 ? '+' : '−'}${fmt(Math.abs(pct), 1)}%)`;
+      return `<div class="wi-row"><div class="wi-name">${esc(r.name)}<small>${esc(r.sub)}</small></div>` +
+        `<div class="wi-val">${money(r.v)} <span style="color:var(--muted);font-size:.75em">${esc(state.currency)}</span><small class="${cls}">${delta}</small></div>` +
+        `<div class="wi-bar"><i style="--w:${((r.v / max) * 100).toFixed(2)}%;--c:${r.col}"></i></div></div>`;
+    }).join('');
+  }
+
+  function renderCurrencyLabels() {
+    $$('[data-cur]').forEach((n) => { n.textContent = state.currency; });
+    setText('curChip', state.currency);
+    setText('t-price-unit', `${state.currency}/L`);
+  }
+
+  function renderSegs() {
+    $$('#tripSeg [data-legs]').forEach((b) => b.setAttribute('aria-checked', String(+b.dataset.legs === state.legs)));
+    $$('#wiSeg [data-period]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.period === state.wiPeriod)));
+    $$('#themeSeg [data-theme-opt]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themeOpt === state.theme)));
+  }
+
+  function update() {
+    fields.forEach((f) => f.sync());
+    renderCalc();
+    renderTank();
+    persistSettings();
+  }
+
+  /* ===================== Theme ===================== */
+  const mqDark = window.matchMedia('(prefers-color-scheme: dark)');
+  function applyTheme() {
+    const t = state.theme === 'system' ? (mqDark.matches ? 'dark' : 'light') : state.theme;
+    document.documentElement.dataset.theme = t;
+    $('meta[name="theme-color"]').setAttribute('content', t === 'dark' ? '#0f172a' : '#ffffff');
+    renderSegs();
+  }
+  mqDark.addEventListener?.('change', () => state.theme === 'system' && applyTheme());
+
+  /* ===================== Tabs ===================== */
+  function showTab(name) {
+    $$('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    $$('.panel').forEach((p) => { p.hidden = p.id !== 'tab-' + name; });
+    if (name === 'log') renderLog();
+    if (name === 'tank' && !$('#t-price').value) $('#t-price').value = state.price.toFixed(curDp());
+    try { history.replaceState(null, '', '#' + name); } catch {}
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }
+
+  /* ===================== Tank-to-tank ===================== */
+  let tankResult = null;
+  function readTank() {
+    const km = parseNum($('#t-km').value), l = parseNum($('#t-l').value);
+    const board = parseNum($('#t-board').value), price = parseNum($('#t-price').value);
+    return { km, l, board, price: isNum(price) && price > 0 ? price : state.price };
+  }
+  function renderTank() {
+    const t = readTank();
+    const valid = isNum(t.km) && t.km > 0 && isNum(t.l) && t.l > 0;
+    $('#btnApply').disabled = !valid;
+    $('#btnSaveRefuel').disabled = !valid;
+    const v = $('#r-verdict');
+    if (!valid) {
+      tankResult = null;
+      ['r-cons', 'r-delta', 'r-fill', 'r-perkm', 'r-month'].forEach((id) => setText(id, '--'));
+      setText('r-cons-sub', 'Enter distance and liters');
+      setText('r-delta-sub', 'No estimate entered');
+      setText('r-fill-sub', '');
+      setText('r-month-sub', '');
+      v.hidden = true;
+      return;
+    }
+    const real = (t.l / t.km) * 100;
+    const fill = t.l * t.price;
+    const month = periodCost(real, t.price, 'month');
+    tankResult = { ...t, real, fill };
+    setText('r-cons', fmt(real, 2));
+    setText('r-cons-sub', `${fmt(t.km, 1)} km on ${fmt(t.l, 2)} L · range ${fmt(100 / real, 1)} km/L`);
+    setText('r-fill', money(fill));
+    setText('r-fill-sub', `${fmt(t.l, 2)} L × ${money(t.price)}`);
+    setText('r-perkm', fmt((real / 100) * t.price, 2));
+    setText('r-month', money(month));
+    const diffVsCalc = month - periodCost(state.consumption, state.price, 'month');
+    setText('r-month-sub', `${diffVsCalc >= 0 ? '+' : '−'}${money(Math.abs(diffVsCalc))} vs calculator`);
+
+    const deltaEl = $('#r-delta');
+    if (isNum(t.board) && t.board > 0) {
+      const pct = ((real - t.board) / t.board) * 100;
+      deltaEl.textContent = `${pct >= 0 ? '+' : '−'}${fmt(Math.abs(pct), 1)}%`;
+      deltaEl.className = Math.abs(pct) < 2 ? 'flat' : pct > 0 ? 'up' : 'down';
+      setText('r-delta-sub', `${pct >= 0 ? '+' : '−'}${fmt(Math.abs(real - t.board), 2)} L/100 km vs ${fmt(t.board, 1)}`);
+      v.hidden = false;
+      v.innerHTML = Math.abs(pct) < 2
+        ? `Board computer is accurate within ${fmt(Math.abs(pct), 1)}%. Trust its readout for daily estimates.`
+        : pct > 0
+          ? `Board computer is <b class="up">optimistic by ${fmt(pct, 1)}%</b>. Real consumption runs higher than displayed; correct future readings by ×${fmt(real / t.board, 3)}.`
+          : `Board computer is <b class="down">pessimistic by ${fmt(-pct, 1)}%</b>. You burn less than displayed; correct future readings by ×${fmt(real / t.board, 3)}.`;
+    } else {
+      deltaEl.textContent = '--';
+      deltaEl.className = '';
+      setText('r-delta-sub', 'No estimate entered');
+      v.hidden = true;
+    }
+  }
+
+  /* ===================== Log ===================== */
+  let logFilter = 'All';
+  function filteredLog() {
+    const list = logFilter === 'All' ? log : log.filter((e) => e.category === logFilter);
+    return list.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.ts - a.ts));
+  }
+  function renderFilterChips() {
+    const opts = ['All', ...CATEGORIES];
+    $('#logFilter').innerHTML = opts.map((o) => `<button type="button" data-f="${o}" aria-pressed="${o === logFilter}">${o}</button>`).join('');
+  }
+
+  function sparkline(svg, pts, color, unitDp) {
+    const W = 300, H = 70, P = 8;
+    if (pts.length < 2) {
+      svg.innerHTML = `<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="4 4"/>` +
+        `<text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-size="12" fill="var(--muted)">Log 2+ entries to see a trend</text>`;
+      return null;
+    }
+    const vals = pts.map((p) => p.v);
+    const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+    const x = (i) => P + (i * (W - 2 * P)) / (pts.length - 1);
+    const y = (v) => H - P - ((v - min) / span) * (H - 2 * P);
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+    const area = `${line}L${x(pts.length - 1).toFixed(1)},${H - P}L${P},${H - P}Z`;
+    const gid = svg.id + '-g';
+    const lx = x(pts.length - 1), ly = y(vals[vals.length - 1]);
+    svg.innerHTML =
+      `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>` +
+      `<line x1="${P}" x2="${W - P}" y1="${y(min)}" y2="${y(min)}" stroke="var(--line)" stroke-dasharray="3 4"/>` +
+      `<line x1="${P}" x2="${W - P}" y1="${y(max)}" y2="${y(max)}" stroke="var(--line)" stroke-dasharray="3 4"/>` +
+      `<path d="${area}" fill="url(#${gid})"/>` +
+      `<path d="${line}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>` +
+      `<circle cx="${lx}" cy="${ly}" r="4" fill="${color}" stroke="var(--panel)" stroke-width="2"/>`;
+    return { min, max, last: vals[vals.length - 1], first: vals[0], n: pts.length, dp: unitDp };
+  }
+
+  function renderLog() {
+    renderFilterChips();
+    const list = filteredLog();
+    const cur = state.currency;
+    const totKm = list.reduce((s, e) => s + e.km, 0);
+    const totL = list.reduce((s, e) => s + e.liters, 0);
+    const sameCur = list.filter((e) => e.currency === cur);
+    const totCost = sameCur.reduce((s, e) => s + e.cost, 0);
+    const otherCur = list.length - sameCur.length;
+
+    setText('s-km', fmt(totKm, 1));
+    setText('s-count', `${list.length} ${list.length === 1 ? 'entry' : 'entries'}`);
+    setText('s-l', fmt(totL, 2));
+    setText('s-cost', money(totCost));
+    setText('s-cost-sub', otherCur ? `${otherCur} in other currencies excluded` : (logFilter === 'All' ? 'All entries' : logFilter + ' only'));
+
+    const refuels = list.filter((e) => e.category === 'Refuel' && e.km > 0 && e.liters > 0);
+    let avgCons = NaN, consSrc = 'No data yet';
+    if (refuels.length) {
+      avgCons = (refuels.reduce((s, e) => s + e.liters, 0) / refuels.reduce((s, e) => s + e.km, 0)) * 100;
+      consSrc = `${refuels.length} tank-to-tank ${refuels.length === 1 ? 'fill' : 'fills'}`;
+    } else if (totKm > 0 && totL > 0) {
+      avgCons = (totL / totKm) * 100;
+      consSrc = 'From all entries';
+    }
+    setText('s-cons', fmt(avgCons, 2));
+    setText('s-cons-sub', consSrc);
+    const priced = sameCur.filter((e) => e.price > 0 && e.liters > 0);
+    const pL = priced.reduce((s, e) => s + e.liters, 0);
+    setText('s-price', pL ? money(priced.reduce((s, e) => s + e.price * e.liters, 0) / pL) : '--');
+    const costKm = sameCur.reduce((s, e) => s + e.km, 0);
+    setText('s-perkm', costKm ? fmt(totCost / costKm, 2) : '--');
+
+    const asc = list.slice().reverse();
+    const priceStats = sparkline($('#sp-price'), asc.filter((e) => e.price > 0 && e.currency === cur).map((e) => ({ v: e.price })), 'var(--accent)', curDp());
+    const consPts = (refuels.length >= 2 ? refuels.slice().reverse() : asc.filter((e) => e.cons > 0)).map((e) => ({ v: e.cons }));
+    const consStats = sparkline($('#sp-cons'), consPts, 'var(--accent2)', 2);
+    const meta = (s, unit) => s
+      ? `<span>Min ${fmt(s.min, s.dp)}</span><span>Max ${fmt(s.max, s.dp)}</span><span>Δ ${s.last - s.first >= 0 ? '+' : '−'}${fmt(Math.abs(s.last - s.first), s.dp)} ${unit}</span>`
+      : '<span>&nbsp;</span>';
+    $('#sp-price-meta').innerHTML = meta(priceStats, `${cur}/L`);
+    $('#sp-cons-meta').innerHTML = meta(consStats, 'L/100');
+    setText('sp-price-last', priceStats ? `${fmt(priceStats.last, curDp())} ${cur}/L` : '--');
+    setText('sp-cons-last', consStats ? `${fmt(consStats.last, 2)} L/100` : '--');
+
+    setText('logCount', String(list.length));
+    setText('setCount', String(log.length));
+    $('#entries').innerHTML = list.length
+      ? list.map((e) => {
+          const meta = [fmtDate(e.date), `${fmt(e.km, 1)} km`, `${fmt(e.liters, 2)} L`];
+          if (e.cons) meta.push(`${fmt(e.cons, 2)} L/100`);
+          if (e.price) meta.push(`${fmt(e.price, 2)} ${esc(e.currency)}/L`);
+          return `<li class="entry"><div class="e-cat" style="--cc:${CAT_COLORS[e.category]}" aria-hidden="true">${e.category.slice(0, 2).toUpperCase()}</div>` +
+            `<div style="min-width:0"><div class="e-top"><span class="e-label">${esc(e.label)}</span><span class="e-cost">${fmt(e.cost, 2)} ${esc(e.currency)}</span></div>` +
+            `<div class="e-meta">${e.category} · ${meta.join(' · ')}</div></div>` +
+            `<button class="icon-btn" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.label)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></li>`;
+        }).join('')
+      : `<li class="empty">No ${logFilter === 'All' ? '' : logFilter + ' '}entries yet. Save a calculation or a tank-to-tank refuel.</li>`;
+  }
+
+  /* ===================== Save dialog ===================== */
+  let pending = null;
+  function openSave(entry, category, label) {
+    pending = entry;
+    $('#sv-label').value = label;
+    $('#sv-cat').value = category;
+    $('#sv-date').value = todayISO();
+    $('#sv-preview').innerHTML =
+      `${fmt(entry.km, 1)} km · ${fmt(entry.liters, 2)} L · ${fmt(entry.cons, 2)} L/100 km<br>` +
+      `<b>${money(entry.cost)} ${esc(state.currency)}</b> at ${money(entry.price)} ${esc(state.currency)}/L`;
+    $('#dlgSave').showModal();
+  }
+  function commitSave() {
+    if (!pending) return;
+    const label = $('#sv-label').value.trim() || 'Entry';
+    const date = $('#sv-date').value || todayISO();
+    log.push({ ...pending, id: uid(), label, category: $('#sv-cat').value, date, currency: state.currency, ts: Date.now() });
+    persistLog();
+    pending = null;
+    $('#dlgSave').close();
+    if (!$('#tab-log').hidden) renderLog();
+    setText('setCount', String(log.length));
+    toast('Saved to log');
+  }
+
+  /* ===================== Summary / share ===================== */
+  function summaryText() {
+    const r = compute(), c = state.currency;
+    const d = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    return [
+      `⛽ Commute fuel summary (${d})`,
+      `Route: ${fmt(state.oneWay, 1)} km × ${state.legs} = ${fmt(r.dailyKm, 1)} km/day`,
+      `Consumption: ${fmt(state.consumption, 1)} L/100 km · Price: ${money(state.price)} ${c}/L`,
+      ``,
+      `Daily: ${money(r.daily)} ${c} (${fmt(r.dailyL, 2)} L)`,
+      `Weekly (${WEEK_DAYS} d): ${money(r.weekly)} ${c}`,
+      `Monthly (${state.workDays} d): ${money(r.monthly)} ${c}`,
+      `Annual (${YEAR_DAYS} d): ${money(r.annual)} ${c}`,
+      `Cost per km: ${fmt(r.perKm, 2)} ${c}`
+    ].join('\n');
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      let ok = false; try { ok = document.execCommand('copy'); } catch {}
+      ta.remove(); return ok;
+    }
+  }
+
+  /* ===================== Data portability ===================== */
+  function download(name, content, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  function exportCsv() {
+    if (!log.length) return toast('Log is empty');
+    const q = (v) => { const s = String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ['date', 'label', 'category', 'km', 'liters', 'price_per_l', 'cost', 'l_per_100km', 'currency', 'source'];
+    const rows = log.slice().sort((a, b) => (a.date > b.date ? 1 : -1)).map((e) =>
+      [e.date, e.label, e.category, round(e.km, 2), round(e.liters, 3), round(e.price, 3), round(e.cost, 2), round(e.cons, 3), e.currency, e.source].map(q).join(','));
+    download(`fueltrack-log-${todayISO()}.csv`, '﻿' + [head.join(','), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
+    toast(`Exported ${log.length} entries`);
+  }
+  function backupJson() {
+    const data = { app: 'FuelTrack', schema: 1, version: APP_VERSION, exported: new Date().toISOString(), settings: state, log };
+    download(`fueltrack-backup-${todayISO()}.json`, JSON.stringify(data, null, 2), 'application/json');
+    toast('Backup downloaded');
+  }
+  function restoreJson(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(reader.result); } catch { return toast('Invalid JSON file'); }
+      const incoming = sanitizeLog(Array.isArray(data) ? data : data.log);
+      const settings = sanitizeSettings(data && data.settings);
+      if (!incoming.length && !Object.keys(settings).length) return toast('No FuelTrack data found');
+      if (!confirm(`Restore ${incoming.length} entries and settings? This replaces current data (${log.length} entries).`)) return;
+      log = incoming;
+      state = { ...DEFAULTS, ...settings };
+      persistLog(); store.set(LS.settings, state);
+      applyTheme(); renderCurrencyLabels(); populateCurrency(); update(); renderLog();
+      toast(`Restored ${incoming.length} entries`);
+    };
+    reader.onerror = () => toast('Could not read file');
+    reader.readAsText(file);
+  }
+
+  /* ===================== PWA: icons, manifest, SW, install ===================== */
+  function drawIcon(size) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    const s = size / 512;
+    const bg = g.createLinearGradient(0, 0, size, size);
+    bg.addColorStop(0, '#1e293b'); bg.addColorStop(1, '#0f172a');
+    g.fillStyle = bg; g.fillRect(0, 0, size, size);
+    const cx = size / 2, cy = size * 0.56, r = size * 0.3;
+    g.lineCap = 'round';
+    g.lineWidth = 34 * s; g.strokeStyle = '#1f2c47';
+    g.beginPath(); g.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 2.2); g.stroke();
+    const ag = g.createLinearGradient(cx - r, 0, cx + r, 0);
+    ag.addColorStop(0, '#f87171'); ag.addColorStop(0.5, '#f59e0b'); ag.addColorStop(1, '#22d3ee');
+    g.strokeStyle = ag;
+    g.beginPath(); g.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 1.9); g.stroke();
+    for (let i = 0; i <= 6; i++) {
+      const a = Math.PI * 0.8 + (i * Math.PI * 1.4) / 6;
+      g.strokeStyle = 'rgba(226,232,240,.55)'; g.lineWidth = 6 * s;
+      g.beginPath(); g.moveTo(cx + Math.cos(a) * (r - 40 * s), cy + Math.sin(a) * (r - 40 * s));
+      g.lineTo(cx + Math.cos(a) * (r - 60 * s), cy + Math.sin(a) * (r - 60 * s)); g.stroke();
+    }
+    const na = Math.PI * 1.72;
+    g.strokeStyle = '#e2e8f0'; g.lineWidth = 14 * s;
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(na) * r * 0.74, cy + Math.sin(na) * r * 0.74); g.stroke();
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(cx, cy, 22 * s, 0, Math.PI * 2); g.fill();
+    const dx = cx, dy = cy + r * 0.62, dr = 26 * s;
+    g.fillStyle = '#22d3ee';
+    g.beginPath(); g.moveTo(dx, dy - dr * 1.9);
+    g.bezierCurveTo(dx + dr * 0.2, dy - dr * 1.2, dx + dr, dy - dr * 0.6, dx + dr, dy);
+    g.arc(dx, dy, dr, 0, Math.PI);
+    g.bezierCurveTo(dx - dr, dy - dr * 0.6, dx - dr * 0.2, dy - dr * 1.2, dx, dy - dr * 1.9);
+    g.fill();
+    return c.toDataURL('image/png');
+  }
+
+  function setupManifest() {
+    let icon192, icon512;
+    try { icon192 = drawIcon(192); icon512 = drawIcon(512); } catch { return; }
+    const base = new URL('./', location.href).href;
+    const manifest = {
+      id: base,
+      name: 'FuelTrack · Commute Fuel Telemetry',
+      short_name: 'FuelTrack',
+      description: 'Commute fuel cost, projections, tank-to-tank efficiency and refuel log.',
+      start_url: base,
+      scope: base,
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#0f172a',
+      theme_color: '#0f172a',
+      categories: ['finance', 'utilities', 'travel'],
+      icons: [
+        { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    $('#manifestLink').href = URL.createObjectURL(blob);
+    $('#faviconLink').href = icon192;
+    $('#appleIconLink').href = icon192;
+    $('#brandIcon').src = icon192;
+  }
+
+  async function registerSW() {
+    const status = $('#swStatus');
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) {
+      status.textContent = 'Unavailable here';
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+      status.textContent = reg.active ? 'Ready' : 'Installing…';
+      navigator.serviceWorker.ready.then(() => { status.textContent = 'Ready'; });
+    } catch {
+      status.textContent = 'Registration failed';
+    }
+  }
+
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(navigator.userAgent);
+  let deferredPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    $('#btnInstall').classList.add('attn');
+    $('#btnInstallNow').hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    $('#btnInstall').classList.remove('attn');
+    $('#btnInstallNow').hidden = true;
+    toast('FuelTrack installed');
+  });
+
+  function openInstall() {
+    const st = $('#insStatus');
+    st.textContent = isStandalone()
+      ? 'Running as an installed app. Everything works offline.'
+      : deferredPrompt ? 'Your browser supports one-tap install.' : 'Follow the steps for your device.';
+    $('#os-ios').classList.toggle('match', isIOS);
+    $('#os-android').classList.toggle('match', isAndroid);
+    $('#os-desktop').classList.toggle('match', !isIOS && !isAndroid);
+    $('#btnInstallNow').hidden = !deferredPrompt;
+    $('#dlgInstall').showModal();
+  }
+
+  /* ===================== Wiring ===================== */
+  function populateCurrency() {
+    $('#setCurrency').innerHTML = Object.keys(CURRENCIES).map((c) => `<option value="${c}" ${c === state.currency ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  function init() {
+    // Fields
+    ['oneWay', 'consumption', 'price', 'workDays'].forEach((k) => makeField($('#calcFields'), k));
+    ['shift', 'hike'].forEach((k) => makeField($('#wiFields'), k));
+
+    $('#sv-cat').innerHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join('');
+    populateCurrency();
+    setText('appVer', APP_VERSION);
+
+    // Segments
+    $('#tripSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-legs]'); if (!b) return;
+      state.legs = +b.dataset.legs; renderSegs(); update();
+    });
+    $('#wiSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-period]'); if (!b) return;
+      state.wiPeriod = b.dataset.period; renderSegs(); renderWhatIf(); persistSettings();
+    });
+    $('#themeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-theme-opt]'); if (!b) return;
+      state.theme = b.dataset.themeOpt; applyTheme(); persistSettings();
+    });
+    $('#btnTheme').addEventListener('click', () => {
+      const cur = document.documentElement.dataset.theme;
+      state.theme = cur === 'dark' ? 'light' : 'dark'; applyTheme(); persistSettings();
+    });
+
+    // Tabs
+    $$('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+    // Dialogs: close buttons and backdrop tap
+    $$('dialog').forEach((d) => {
+      d.addEventListener('click', (e) => {
+        if (e.target === d || e.target.closest('[data-close]')) d.close();
+      });
+    });
+    $('#btnSettings').addEventListener('click', () => { setText('setCount', String(log.length)); $('#dlgSettings').showModal(); });
+    $('#btnInstall').addEventListener('click', openInstall);
+    $('#btnInstallNow').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      $('#btnInstallNow').hidden = true;
+      if (outcome === 'accepted') $('#dlgInstall').close();
+    });
+
+    // Settings
+    $('#setCurrency').addEventListener('change', (e) => {
+      state.currency = e.target.value;
+      renderCurrencyLabels(); update();
+      if (!$('#tab-log').hidden) renderLog();
+      toast(`Currency set to ${state.currency}. Check the fuel price.`);
+    });
+    $('#btnReset').addEventListener('click', () => {
+      const keep = { currency: state.currency, theme: state.theme };
+      state = { ...DEFAULTS, ...keep };
+      if (keep.currency !== 'RSD') state.price = CURRENCIES[keep.currency].min + (CURRENCIES[keep.currency].max - CURRENCIES[keep.currency].min) / 2;
+      renderSegs(); update(); $('#dlgSettings').close(); toast('Calculator reset');
+    });
+
+    // Calculator actions
+    $('#btnSaveCalc').addEventListener('click', () => {
+      const r = compute();
+      openSave({ km: r.dailyKm, liters: r.dailyL, price: state.price, cost: r.daily, cons: state.consumption, source: 'calc' },
+        'Commute', `Commute ${state.legs === 2 ? 'round-trip' : 'one-way'}`);
+    });
+    $('#btnCopy').addEventListener('click', async () => toast((await copyText(summaryText())) ? 'Summary copied' : 'Copy blocked by browser'));
+    if (navigator.share) {
+      $('#btnShare').hidden = false;
+      $('#btnShare').addEventListener('click', () => navigator.share({ title: 'Commute fuel summary', text: summaryText() }).catch(() => {}));
+    }
+
+    // Tank
+    ['#t-km', '#t-l', '#t-board', '#t-price'].forEach((s) => {
+      const el = $(s);
+      el.addEventListener('input', renderTank);
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.blur(); });
+    });
+    $('#btnApply').addEventListener('click', () => {
+      if (!tankResult) return;
+      state.consumption = round(tankResult.real, 1);
+      update(); showTab('calc');
+      toast(`Applied ${fmt(state.consumption, 1)} L/100 km`);
+    });
+    $('#btnSaveRefuel').addEventListener('click', () => {
+      if (!tankResult) return;
+      openSave({ km: tankResult.km, liters: tankResult.l, price: tankResult.price, cost: tankResult.fill, cons: tankResult.real, source: 'refuel' },
+        'Refuel', 'Full tank refuel');
+    });
+
+    // Save form
+    $('#saveForm').addEventListener('submit', (e) => { e.preventDefault(); commitSave(); });
+
+    // Log interactions
+    $('#logFilter').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-f]'); if (!b) return;
+      logFilter = b.dataset.f; renderLog();
+    });
+    $('#entries').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-del]'); if (!b) return;
+      const entry = log.find((x) => x.id === b.dataset.del);
+      if (!entry || !confirm(`Delete "${entry.label}"?`)) return;
+      log = log.filter((x) => x.id !== entry.id);
+      persistLog(); renderLog(); toast('Entry deleted');
+    });
+    $('#btnCsv').addEventListener('click', exportCsv);
+    $('#btnBackup').addEventListener('click', backupJson);
+    $('#btnRestore').addEventListener('click', () => $('#fileRestore').click());
+    $('#fileRestore').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) restoreJson(f);
+      e.target.value = '';
+    });
+    $('#btnClear').addEventListener('click', () => {
+      if (!log.length) return toast('Log is already empty');
+      if (!confirm(`Delete all ${log.length} log entries? Export a backup first if you need it.`)) return;
+      log = []; persistLog(); renderLog(); toast('Log cleared');
+    });
+
+    // Initial paint
+    applyTheme();
+    renderCurrencyLabels();
+    renderSegs();
+    update();
+    const start = (location.hash || '').slice(1);
+    showTab(['calc', 'tank', 'log'].includes(start) ? start : 'calc');
+
+    setupManifest();
+    registerSW();
+    if (isStandalone()) $('#btnInstall').hidden = true;
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
