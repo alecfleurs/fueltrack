@@ -254,8 +254,8 @@ dialog[open]{animation:sheet .22s ease}
       <div class="card">
         <div class="card-h"><h2>Parameters</h2><span class="chip" id="curChip">RSD</span></div>
         <div class="seg" role="radiogroup" aria-label="Trip mode" id="tripSeg">
-          <button type="button" role="radio" data-legs="2">Round-Trip ×2</button>
           <button type="button" role="radio" data-legs="1">One-Way ×1</button>
+          <button type="button" role="radio" data-legs="2">Round-Trip ×2</button>
         </div>
         <div id="calcFields"></div>
         <p class="hint">Swipe a slider sideways to adjust. Tap a box to type an exact value.</p>
@@ -284,7 +284,7 @@ dialog[open]{animation:sheet .22s ease}
             <div class="t-sub" id="o-perkm-sub"></div>
           </div>
           <div class="tile" style="--tc:var(--accent2)">
-            <div class="t-label">Weekly</div>
+            <div class="t-label" id="o-week-lbl">Weekly</div>
             <div class="t-val"><span id="o-week">0</span><small data-cur>RSD</small></div>
             <div class="t-sub" id="o-week-sub"></div>
           </div>
@@ -294,7 +294,7 @@ dialog[open]{animation:sheet .22s ease}
             <div class="t-sub" id="o-month-sub"></div>
           </div>
           <div class="tile" style="--tc:var(--bad)">
-            <div class="t-label">Annual · 260 d</div>
+            <div class="t-label" id="o-year-lbl">Annual</div>
             <div class="t-val"><span id="o-year">0</span><small data-cur>RSD</small></div>
             <div class="t-sub" id="o-year-sub"></div>
           </div>
@@ -499,10 +499,12 @@ dialog[open]{animation:sheet .22s ease}
   'use strict';
 
   /* ===================== Constants & storage ===================== */
-  const APP_VERSION = '1.0.1';
+  const APP_VERSION = '1.0.2';
   const LS = { settings: 'fueltrack.settings.v1', log: 'fueltrack.log.v1' };
-  const WEEK_DAYS = 5;
-  const YEAR_DAYS = 260;
+  // All projections derive from working days per month:
+  // annual = workDays × 12, weekly = annual ÷ 52 (22 d/month → 264 d/yr, 5.08 d/wk).
+  const yearDays = () => state.workDays * 12;
+  const weekDays = () => (state.workDays * 12) / 52;
   const CATEGORIES = ['Commute', 'City', 'Highway', 'Refuel'];
   const CAT_COLORS = { Commute: 'var(--accent2)', City: 'var(--warn)', Highway: 'var(--violet)', Refuel: 'var(--good)' };
   const CURRENCIES = {
@@ -616,15 +618,15 @@ dialog[open]{animation:sheet .22s ease}
       dailyKm, legL, dailyL, daily,
       legCost: legL * s.price,
       perKm: lPerKm * s.price,
-      weekly: daily * WEEK_DAYS,
+      weekly: daily * weekDays(),
       monthly: daily * s.workDays,
-      annual: daily * YEAR_DAYS,
-      annualKm: dailyKm * YEAR_DAYS,
-      annualL: dailyL * YEAR_DAYS
+      annual: daily * yearDays(),
+      annualKm: dailyKm * yearDays(),
+      annualL: dailyL * yearDays()
     };
   }
   const periodCost = (cons, price, period) =>
-    state.oneWay * state.legs * (cons / 100) * price * (period === 'year' ? YEAR_DAYS : state.workDays);
+    state.oneWay * state.legs * (cons / 100) * price * (period === 'year' ? yearDays() : state.workDays);
 
   /* ===================== Synced fields ===================== */
   const FIELD_DEFS = {
@@ -744,7 +746,9 @@ dialog[open]{animation:sheet .22s ease}
     setText('o-perkm', fmt(r.perKm, 2));
     setText('o-perkm-sub', `${fmt(state.consumption, 1)} L/100 km × ${money(state.price)}`);
     setText('o-week', money(r.weekly));
-    setText('o-week-sub', `${WEEK_DAYS} days · ${fmt(r.dailyL * WEEK_DAYS, 1)} L`);
+    setText('o-week-lbl', `Weekly · ${fmt(weekDays(), 1)} d`);
+    setText('o-week-sub', `${fmt(r.dailyKm * weekDays(), 1)} km · ${fmt(r.dailyL * weekDays(), 1)} L`);
+    setText('o-year-lbl', `Annual · ${yearDays()} d`);
     setText('o-month', money(r.monthly));
     setText('o-month-sub', `${state.workDays} days · ${fmt(r.dailyL * state.workDays, 1)} L`);
     setText('o-year', money(r.annual));
@@ -1002,9 +1006,9 @@ dialog[open]{animation:sheet .22s ease}
       `Consumption: ${fmt(state.consumption, 1)} L/100 km · Price: ${money(state.price)} ${c}/L`,
       ``,
       `Daily: ${money(r.daily)} ${c} (${fmt(r.dailyL, 2)} L)`,
-      `Weekly (${WEEK_DAYS} d): ${money(r.weekly)} ${c}`,
+      `Weekly (${fmt(weekDays(), 1)} d): ${money(r.weekly)} ${c}`,
       `Monthly (${state.workDays} d): ${money(r.monthly)} ${c}`,
-      `Annual (${YEAR_DAYS} d): ${money(r.annual)} ${c}`,
+      `Annual (${yearDays()} d): ${money(r.annual)} ${c}`,
       `Cost per km: ${fmt(r.perKm, 2)} ${c}`
     ].join('\n');
   }
