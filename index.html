@@ -119,13 +119,14 @@ main{max-width:1040px;margin:0 auto;padding:14px 14px 0}
 .stack{display:grid;gap:12px}
 .stack label.lbl{display:grid;gap:6px;font-size:.85rem;font-weight:600;color:var(--muted)}
 
-/* Range */
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:0;background:transparent;--p:50%}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--accent) 0 var(--p),var(--line) var(--p) 100%)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:var(--accent);border:4px solid var(--bg2);box-shadow:0 0 0 1px var(--accent),0 2px 8px rgba(0,0,0,.4)}
-input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
-input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
-input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);border:4px solid var(--bg2);box-shadow:0 0 0 1px var(--accent)}
+/* Slider: custom, scroll-safe (vertical swipes pass through, taps ignored) */
+.slider{position:relative;height:44px;touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:grab;outline:none}
+.slider.dragging{cursor:grabbing}
+.s-track{position:absolute;left:13px;right:13px;top:50%;height:6px;margin-top:-3px;border-radius:3px;background:var(--line)}
+.s-fill{height:100%;width:0;border-radius:3px;background:var(--accent)}
+.s-thumb{position:absolute;top:50%;left:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--accent);border:4px solid var(--bg2);box-shadow:0 0 0 1px var(--accent),0 2px 8px rgba(0,0,0,.4);transition:transform .12s ease,box-shadow .12s ease}
+.slider.dragging .s-thumb{transform:scale(1.25);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 25%,transparent),0 2px 8px rgba(0,0,0,.4)}
+.slider:focus-visible .s-thumb{box-shadow:0 0 0 3px var(--accent2)}
 
 /* Calculator layout */
 .calc-layout{display:grid;gap:14px}
@@ -257,6 +258,7 @@ dialog[open]{animation:sheet .22s ease}
           <button type="button" role="radio" data-legs="1">One-Way ×1</button>
         </div>
         <div id="calcFields"></div>
+        <p class="hint">Swipe a slider sideways to adjust. Tap a box to type an exact value.</p>
       </div>
 
       <div class="outputs">
@@ -497,7 +499,7 @@ dialog[open]{animation:sheet .22s ease}
   'use strict';
 
   /* ===================== Constants & storage ===================== */
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.0.1';
   const LS = { settings: 'fueltrack.settings.v1', log: 'fueltrack.log.v1' };
   const WEEK_DAYS = 5;
   const YEAR_DAYS = 260;
@@ -643,24 +645,35 @@ dialog[open]{animation:sheet .22s ease}
     el.innerHTML =
       `<div class="field-h"><label for="${id}">${def.label}</label>` +
       `<div class="numbox"><input id="${id}" class="numin" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"><span class="unit"></span></div></div>` +
-      `<input type="range" aria-label="${def.label} slider">`;
+      `<div class="slider" role="slider" tabindex="0" aria-label="${def.label}"><div class="s-track"><div class="s-fill"></div><div class="s-thumb"></div></div></div>`;
     host.appendChild(el);
-    const num = $('.numin', el), rng = $('input[type=range]', el), unit = $('.unit', el);
+    const num = $('.numin', el), sl = $('.slider', el), fill = $('.s-fill', el), thumb = $('.s-thumb', el), unit = $('.unit', el);
     const dp = () => (typeof def.dp === 'function' ? def.dp() : def.dp);
     const bounds = () => (def.bounds ? def.bounds() : def);
+    let lo = 0, hi = 1, stp = 1;
 
     const api = {
       sync() {
         const v = state[key], b = bounds();
-        rng.min = Math.min(b.min, v);
-        rng.max = Math.max(b.max, v);
-        rng.step = b.step;
-        rng.value = v;
-        const p = ((v - rng.min) / (rng.max - rng.min || 1)) * 100;
-        rng.style.setProperty('--p', p + '%');
+        lo = Math.min(b.min, v); hi = Math.max(b.max, v); stp = b.step;
+        const p = Math.min(100, Math.max(0, ((v - lo) / (hi - lo || 1)) * 100));
+        fill.style.width = p + '%';
+        thumb.style.left = p + '%';
+        sl.setAttribute('aria-valuemin', lo);
+        sl.setAttribute('aria-valuemax', hi);
+        sl.setAttribute('aria-valuenow', v);
+        const u = typeof def.unit === 'function' ? def.unit() : def.unit;
+        sl.setAttribute('aria-valuetext', `${v.toFixed(dp())} ${u}`);
         if (document.activeElement !== num) { num.value = v.toFixed(dp()); num.removeAttribute('aria-invalid'); }
-        unit.textContent = typeof def.unit === 'function' ? def.unit() : def.unit;
+        unit.textContent = u;
       }
+    };
+
+    const setValue = (raw) => {
+      let v = Math.round(raw / stp) * stp;
+      v = round(Math.min(hi, Math.max(lo, v)), dp());
+      if (key === 'workDays') v = Math.round(v);
+      if (v !== state[key]) { state[key] = v; update(); }
     };
 
     num.addEventListener('input', () => {
@@ -674,9 +687,42 @@ dialog[open]{animation:sheet .22s ease}
     num.addEventListener('blur', () => { num.value = state[key].toFixed(dp()); num.removeAttribute('aria-invalid'); });
     num.addEventListener('keydown', (e) => { if (e.key === 'Enter') num.blur(); });
     num.addEventListener('focus', () => requestAnimationFrame(() => num.select()));
-    rng.addEventListener('input', () => {
-      state[key] = round(parseFloat(rng.value), dp());
-      update();
+
+    /* Gesture: taps never change the value. A drag only takes over once it is
+       clearly horizontal; vertical movement is left to the page scroll
+       (touch-action: pan-y makes the browser cancel our pointer when it scrolls).
+       Movement is relative to the start value, so nothing jumps on touch. */
+    const SLOP = 8;
+    let drag = null;
+    const endDrag = () => { drag = null; sl.classList.remove('dragging'); };
+    sl.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, v: state[key], w: sl.querySelector('.s-track').getBoundingClientRect().width || 1, active: false };
+    });
+    sl.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.active) {
+        if (Math.abs(dy) > SLOP && Math.abs(dy) >= Math.abs(dx)) { endDrag(); return; }
+        if (Math.abs(dx) <= SLOP || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        drag.active = true;
+        drag.x = e.clientX;
+        drag.v = state[key];
+        if (e.pointerType === 'mouse') { try { sl.setPointerCapture(e.pointerId); } catch {} }
+        sl.classList.add('dragging');
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+        return;
+      }
+      e.preventDefault();
+      setValue(drag.v + ((e.clientX - drag.x) / drag.w) * (hi - lo));
+    });
+    ['pointerup', 'pointercancel'].forEach((t) => sl.addEventListener(t, endDrag));
+    sl.addEventListener('keydown', (e) => {
+      const big = Math.max(stp, (hi - lo) / 10);
+      const map = { ArrowRight: stp, ArrowUp: stp, ArrowLeft: -stp, ArrowDown: -stp, PageUp: big, PageDown: -big };
+      if (e.key in map) { e.preventDefault(); setValue(state[key] + map[e.key]); }
+      else if (e.key === 'Home') { e.preventDefault(); setValue(lo); }
+      else if (e.key === 'End') { e.preventDefault(); setValue(hi); }
     });
 
     fields.push(api);
