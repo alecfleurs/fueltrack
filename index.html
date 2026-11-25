@@ -499,12 +499,12 @@ dialog[open]{animation:sheet .22s ease}
   'use strict';
 
   /* ===================== Constants & storage ===================== */
-  const APP_VERSION = '1.0.3';
+  const APP_VERSION = '1.0.4';
   const LS = { settings: 'fueltrack.settings.v1', log: 'fueltrack.log.v1' };
   // All projections derive from working days per month:
-  // annual = workDays × 12, weekly = round(annual ÷ 52) (22 d/month → 264 d/yr, 5 d/wk).
+  // annual = workDays × 12, weekly = annual ÷ 52 (22 d/month → 264 d/yr, ~5.08 d/wk).
   const yearDays = () => state.workDays * 12;
-  const weekDays = () => Math.max(1, Math.round((state.workDays * 12) / 52));
+  const weekDays = () => (state.workDays * 12) / 52;
   const CATEGORIES = ['Commute', 'City', 'Highway', 'Refuel'];
   const CAT_COLORS = { Commute: 'var(--accent2)', City: 'var(--warn)', Highway: 'var(--violet)', Refuel: 'var(--good)' };
   const CURRENCIES = {
@@ -746,7 +746,7 @@ dialog[open]{animation:sheet .22s ease}
     setText('o-perkm', fmt(r.perKm, 2));
     setText('o-perkm-sub', `${fmt(state.consumption, 1)} L/100 km × ${money(state.price)}`);
     setText('o-week', money(r.weekly));
-    setText('o-week-lbl', `Weekly · ${weekDays()} d`);
+    setText('o-week-lbl', 'Weekly');
     setText('o-week-sub', `${fmt(r.dailyKm * weekDays(), 1)} km · ${fmt(r.dailyL * weekDays(), 1)} L`);
     setText('o-year-lbl', `Annual · ${yearDays()} d`);
     setText('o-month', money(r.monthly));
@@ -1006,7 +1006,7 @@ dialog[open]{animation:sheet .22s ease}
       `Consumption: ${fmt(state.consumption, 1)} L/100 km · Price: ${money(state.price)} ${c}/L`,
       ``,
       `Daily: ${money(r.daily)} ${c} (${fmt(r.dailyL, 2)} L)`,
-      `Weekly (${weekDays()} d): ${money(r.weekly)} ${c}`,
+      `Weekly: ${money(r.weekly)} ${c}`,
       `Monthly (${state.workDays} d, ${fmt(r.dailyKm * state.workDays, 0)} km): ${money(r.monthly)} ${c}`,
       `Annual (${yearDays()} d): ${money(r.annual)} ${c}`,
       `Cost per km: ${fmt(r.perKm, 2)} ${c}`

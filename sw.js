@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const VERSION = 'fueltrack-v1.0.3';
+const VERSION = 'fueltrack-v1.0.4';
 const CACHE = VERSION;
 const CORE = ['./', './index.html'];
 
