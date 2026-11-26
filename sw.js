@@ -4,9 +4,13 @@
  */
 'use strict';
 
-const VERSION = 'fueltrack-v1.0.4';
+const VERSION = 'fueltrack-v1.1.0';
 const CACHE = VERSION;
-const CORE = ['./', './index.html'];
+const CORE = [
+  './', './index.html', './manifest.webmanifest',
+  './icon-192.png', './icon-512.png', './icon-maskable-512.png',
+  './apple-touch-icon.png', './favicon-32.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
